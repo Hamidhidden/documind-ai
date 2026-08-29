@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: documind
+          POSTGRES_USER: documind
+          POSTGRES_PASSWORD: documind
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U documind -d documind" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DJANGO_SECRET_KEY: ci-only-secret
+      POSTGRES_HOST: localhost
+      POSTGRES_DB: documind
+      POSTGRES_USER: documind
+      POSTGRES_PASSWORD: documind
+      CELERY_TASK_ALWAYS_EAGER: "true"
+      AI_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ".[dev]"
+      - run: python src/manage.py migrate --noinput
+      - run: ruff check src tests
+      - run: black --check src tests
+      - run: mypy src
+      - run: pytest
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package.json }
+      - working-directory: frontend
+        run: npm install
+      - working-directory: frontend
+        run: npm run build
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t documind-api .
+      - run: docker build -t documind-web ./frontend

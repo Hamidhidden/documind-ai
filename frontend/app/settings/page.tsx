@@ -1,0 +1,13 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import { AppShell } from "../../components/app-shell";
+import { api, errorMessage } from "../../lib/api";
+
+type Profile = { username: string; email: string; first_name: string; last_name: string; date_joined: string };
+export default function SettingsPage() {
+  const [profile, setProfile] = useState<Profile | null>(null); const [error, setError] = useState(""); const [saved, setSaved] = useState(false);
+  useEffect(() => { api<Profile>("/auth/me/").then(setProfile).catch(cause => setError(errorMessage(cause))); }, []);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const form = new FormData(event.currentTarget); try { const next = await api<Profile>("/auth/me/", { method: "PATCH", body: JSON.stringify({ first_name: form.get("firstName"), last_name: form.get("lastName"), email: form.get("email") }) }); setProfile(next); setSaved(true); } catch (cause) { setError(errorMessage(cause)); } }
+  return <AppShell><header><p className="text-sm font-bold text-teal-600">ACCOUNT</p><h1 className="mt-1 text-3xl font-black">Settings</h1></header><section className="card mt-8 max-w-2xl p-6"><h2 className="text-lg font-bold">Profile</h2>{profile ? <form className="mt-6 space-y-4" onSubmit={submit}><label className="block text-sm font-medium">Username<input className="field mt-1 bg-slate-50" value={profile.username} disabled /></label><label className="block text-sm font-medium">Email<input className="field mt-1" name="email" type="email" defaultValue={profile.email} required /></label><div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">First name<input className="field mt-1" name="firstName" defaultValue={profile.first_name} /></label><label className="block text-sm font-medium">Last name<input className="field mt-1" name="lastName" defaultValue={profile.last_name} /></label></div>{error && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}{saved && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">Profile saved.</p>}<button className="btn">Save changes</button></form> : <p className="mt-5 text-slate-500">Loading profile…</p>}</section><section className="card mt-6 max-w-2xl p-6"><h2 className="text-lg font-bold">Privacy model</h2><p className="mt-2 text-sm leading-6 text-slate-600">Documents, collections, and conversations are owned by your account. Retrieval queries are always filtered server-side by ownership; uploaded content is treated as untrusted data.</p></section></AppShell>;
+}
