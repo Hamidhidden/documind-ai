@@ -10,3 +10,7 @@ frontend/.next
 media
 staticfiles
 
+work
+build
+*.egg-info
+.venv

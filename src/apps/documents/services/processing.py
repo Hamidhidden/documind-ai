@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -13,7 +15,7 @@ from .extraction import extractor_for, normalize_text
 
 def process_document(document: Document) -> None:
     """Extract, chunk, embed, and atomically replace a document's derived data."""
-    pages = extractor_for(document.original_filename).extract(document.file.path)
+    pages = extractor_for(document.original_filename).extract(Path(document.file.path))
     normalized_pages = [
         type(page)(content=normalize_text(page.content), page_number=page.page_number)
         for page in pages

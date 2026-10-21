@@ -90,6 +90,8 @@ class SummaryViewSet(viewsets.ReadOnlyModelViewSet):
         if not created and summary.status == SummaryStatus.READY:
             return Response(SummarySerializer(summary).data)
         large_document = (document.word_count or 0) > 12_000
+        if large_document and not created and summary.status == SummaryStatus.PENDING:
+            return Response(SummarySerializer(summary).data, status=status.HTTP_202_ACCEPTED)
         if large_document:
             summary.status = SummaryStatus.PENDING
             summary.save(update_fields=["status", "updated_at"])

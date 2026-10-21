@@ -40,3 +40,9 @@ def test_profile_update_and_refresh_logout(client_for, user) -> None:
         client_for.post("/api/v1/auth/logout/", {"refresh": refresh}, format="json").status_code
         == 204
     )
+
+
+@pytest.mark.django_db
+def test_logout_rejects_invalid_refresh_token(client_for) -> None:
+    response = client_for.post("/api/v1/auth/logout/", {"refresh": "not-a-token"}, format="json")
+    assert response.status_code == 400

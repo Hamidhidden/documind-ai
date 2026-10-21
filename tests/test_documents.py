@@ -119,3 +119,26 @@ def test_processing_task_tracks_job_and_ready_state(user, monkeypatch) -> None:
     document.refresh_from_db()
     assert document.status == DocumentStatus.READY
     assert document.processing_jobs.count() == 1
+
+
+@pytest.mark.django_db
+def test_txt_upload_is_extracted_chunked_and_searchable(user, settings) -> None:
+    from apps.documents.services.search import semantic_search
+
+    settings.AI_PROVIDER = "mock"
+    settings.SEMANTIC_SEARCH_MAX_DISTANCE = 0.97
+    document = Document.objects.create(
+        owner=user,
+        filename="notes.txt",
+        original_filename="notes.txt",
+        mime_type="text/plain",
+        file_size=40,
+        file=SimpleUploadedFile("notes.txt", "\ufeffQuarterly revenue grew in Europe.".encode()),
+    )
+    process_document(document)
+    document.refresh_from_db()
+    assert document.status == DocumentStatus.READY
+    assert document.chunks.get().content == "Quarterly revenue grew in Europe."
+    results = semantic_search(user_id=user.id, query="How did revenue change?")
+    assert [result.chunk.document_id for result in results] == [document.id]
+    assert semantic_search(user_id=user.id, query="giraffes") == []

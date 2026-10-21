@@ -6,7 +6,7 @@ import { api, Conversation, errorMessage, Message } from "../../lib/api";
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]); const [active, setActive] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]); const [question, setQuestion] = useState(""); const [error, setError] = useState(""); const [sending, setSending] = useState(false);
-  async function loadConversations() { try { const response = await api<{ results: Conversation[] }>("/conversations/?limit=100"); setConversations(response.results); if (!active && response.results[0]) setActive(response.results[0].id); } catch (cause) { setError(errorMessage(cause)); } }
+  async function loadConversations() { try { const response = await api<{ results: Conversation[] }>("/conversations/?limit=100"); setConversations(response.results); const requested = new URLSearchParams(window.location.search).get("conversation"); if (!active) setActive(response.results.find(item => item.id === requested)?.id ?? response.results[0]?.id ?? null); } catch (cause) { setError(errorMessage(cause)); } }
   useEffect(() => { void loadConversations(); }, []);
   useEffect(() => { if (!active) { setMessages([]); return; } api<Message[]>(`/conversations/${active}/messages/`).then(setMessages).catch(cause => setError(errorMessage(cause))); }, [active]);
   async function newConversation() { try { const item = await api<Conversation>("/conversations/", { method: "POST", body: JSON.stringify({ title: "New conversation" }) }); await loadConversations(); setActive(item.id); } catch (cause) { setError(errorMessage(cause)); } }

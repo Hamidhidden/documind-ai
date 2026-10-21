@@ -21,6 +21,7 @@ class LogoutView(generics.GenericAPIView):
     """Blacklist a refresh token; access tokens remain short lived by design."""
 
     def post(self, request: Request) -> Response:
+        from rest_framework_simplejwt.exceptions import TokenError
         from rest_framework_simplejwt.tokens import RefreshToken
 
         token = request.data.get("refresh")
@@ -28,5 +29,11 @@ class LogoutView(generics.GenericAPIView):
             return Response(
                 {"error": {"code": 400, "details": {"refresh": ["Required."]}}}, status=400
             )
-        RefreshToken(token).blacklist()
+        try:
+            RefreshToken(token).blacklist()
+        except TokenError:
+            return Response(
+                {"error": {"code": 400, "details": {"refresh": ["Invalid or expired token."]}}},
+                status=400,
+            )
         return Response(status=204)

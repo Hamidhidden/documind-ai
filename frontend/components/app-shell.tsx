@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearTokens } from "../lib/api";
+import { useEffect, useState } from "react";
+import { clearTokens, isAuthenticated } from "../lib/api";
 
 const links = [
   ["Overview", "/dashboard"], ["Documents", "/documents"], ["Collections", "/collections"],
@@ -10,7 +11,9 @@ const links = [
 ];
 
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
-  const path = usePathname(); const router = useRouter();
+  const path = usePathname(); const router = useRouter(); const [ready, setReady] = useState(false);
+  useEffect(() => { if (isAuthenticated()) setReady(true); else router.replace("/login"); }, [router]);
+  if (!ready) return <div className="min-h-screen bg-cloud" />;
   return <div className="min-h-screen bg-cloud text-ink">
     <aside className="fixed inset-y-0 hidden w-64 flex-col border-r border-slate-200 bg-white p-6 lg:flex">
       <Link href="/dashboard" className="mb-12 text-2xl font-black tracking-tight">docu<span className="text-teal-500">mind</span></Link>

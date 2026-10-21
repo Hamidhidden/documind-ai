@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import math
+import re
 from abc import ABC, abstractmethod
 
 from django.conf import settings
@@ -29,18 +31,38 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
 
 class MockEmbeddingProvider(EmbeddingProvider):
-    """Deterministic local embeddings used only for tests and credential-free development."""
+    """Deterministic local embeddings used only for tests and credential-free development.
+
+    Words are hashed into a bag-of-words vector, so texts that share vocabulary are close in
+    cosine space. This keeps search and chat usable without an API key.
+    """
 
     def embed_many(self, values: list[str]) -> list[list[float]]:
         return [self._embed(value) for value in values]
 
     @staticmethod
     def _embed(value: str) -> list[float]:
-        seed = hashlib.sha512(value.lower().encode("utf-8")).digest()
-        return [
-            ((seed[index % len(seed)] / 255) * 2) - 1
-            for index in range(settings.EMBEDDING_DIMENSIONS)
-        ]
+        dimensions = settings.EMBEDDING_DIMENSIONS
+        vector = [0.0] * dimensions
+        for word in re.findall(r"\w{3,}", value.lower()):
+            if word in _STOPWORDS:
+                continue
+            digest = hashlib.sha256(word.encode("utf-8")).digest()
+            index = int.from_bytes(digest[:4], "big") % dimensions
+            vector[index] += 1.0 if digest[4] % 2 == 0 else -1.0
+        norm = math.sqrt(sum(item * item for item in vector))
+        if not norm:
+            # pgvector cannot compute cosine distance for a zero vector.
+            vector[0] = 1.0
+            return vector
+        return [item / norm for item in vector]
+
+
+_STOPWORDS = frozenset(
+    "the and for are but not you all any can had her was one our out has have this that with "
+    "what when where which who why how from they them their there these those into about would "
+    "could should does did its it's also than then been being were will just".split()
+)
 
 
 def embedding_provider() -> EmbeddingProvider:
