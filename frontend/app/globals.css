@@ -47,5 +47,8 @@ button, input, select, textarea { font: inherit; }
 .text-rose-700 { color: var(--danger-ink) !important; }
 .text-emerald-700 { color: var(--ok-ink) !important; }
 .border, .border-b, .border-t, .border-e, .border-slate-200, .divide-y > * + * { border-color: var(--border) !important; }
+.dark .bg-amber-50 { background-color: #33270f !important; }
+.dark .text-amber-900, .dark .text-amber-800 { color: #fcd34d !important; }
+.dark .border-amber-200 { border-color: #5c4413 !important; }
 .bubble-user { background: var(--bubble); color: var(--bubble-ink); }
 .dark .status-chip { filter: saturate(0.9) brightness(0.9); }

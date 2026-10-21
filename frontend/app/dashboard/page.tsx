@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "../../components/app-shell";
 import { StatusBadge } from "../../components/status-badge";
-import { api, Dashboard, Document, errorMessage } from "../../lib/api";
+import { DateRow } from "../../components/radar";
+import { ProBadge } from "../../components/upgrade";
+import { api, Dashboard, Document, errorMessage, Radar } from "../../lib/api";
 import { usePreferences } from "../../lib/preferences";
 
 function Kpi({ label, value, hint, progress }: Readonly<{ label: string; value: string; hint: string; progress?: number | null }>) {
@@ -44,8 +46,8 @@ function BarList({ title, empty, rows }: Readonly<{ title: string; empty: string
 
 export default function DashboardPage() {
   const { t, number, percent, date, bytes } = usePreferences();
-  const [stats, setStats] = useState<Dashboard | null>(null); const [recent, setRecent] = useState<Document[]>([]); const [error, setError] = useState("");
-  useEffect(() => { Promise.all([api<Dashboard>("/dashboard/"), api<{ results: Document[] }>("/documents/?limit=5")]).then(([data, documents]) => { setStats(data); setRecent(documents.results); }).catch(cause => setError(errorMessage(cause, t("common.error")))); }, [t]);
+  const [stats, setStats] = useState<Dashboard | null>(null); const [recent, setRecent] = useState<Document[]>([]); const [radar, setRadar] = useState<Radar | null>(null); const [error, setError] = useState("");
+  useEffect(() => { Promise.all([api<Dashboard>("/dashboard/"), api<{ results: Document[] }>("/documents/?limit=5")]).then(([data, documents]) => { setStats(data); setRecent(documents.results); api<Radar>("/radar/").then(setRadar).catch(() => undefined); }).catch(cause => setError(errorMessage(cause, t("common.error")))); }, [t]);
   const processing = (stats?.documents.by_status.PROCESSING ?? 0) + (stats?.documents.by_status.UPLOADED ?? 0);
   return <AppShell>
     <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-bold text-teal-600">{t("dashboard.eyebrow")}</p><h1 className="mt-1 text-3xl font-black">{t("dashboard.greeting")}</h1><p className="mt-1 text-sm text-slate-500">{date(new Date(), "long")}</p></div><div className="flex gap-2"><Link className="btn-secondary" href="/chat">{t("dashboard.newChat")}</Link><Link className="btn" href="/documents">{t("dashboard.upload")}</Link></div></header>
@@ -60,8 +62,10 @@ export default function DashboardPage() {
       </section>
       <section className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <ActivityChart data={stats.activity} />
-        <section className="card p-6"><h2 className="font-bold">{t("dashboard.gaps")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("dashboard.gapsHint")}</p>{stats.knowledge_gaps.length ? <ul className="mt-4 divide-y">{stats.knowledge_gaps.map(gap => <li key={`${gap.conversation_id}${gap.asked_at}`}><Link className="block py-2.5 hover:text-teal-700" href={`/chat?conversation=${gap.conversation_id}`}><span className="line-clamp-2 text-sm font-medium" dir="auto">{gap.question}</span><span className="text-xs text-slate-400">{date(gap.asked_at)}</span></Link></li>)}</ul> : <p className="mt-6 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">✓ {t("dashboard.gapsEmpty")}</p>}</section>
+        <section className="card p-6"><h2 className="font-bold">{t("dashboard.gaps")}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{t("dashboard.gapsHint")}</p>{stats.knowledge_gaps_locked ? <div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><ProBadge /><p className="mt-2 leading-6">{t("dashboard.gapsLocked", { count: number(stats.knowledge_gaps_count) })}</p><Link className="mt-2 inline-block font-semibold underline" href="/billing">{t("upgrade.cta")}</Link></div> : stats.knowledge_gaps.length ? <ul className="mt-4 divide-y">{stats.knowledge_gaps.map(gap => <li key={`${gap.conversation_id}${gap.asked_at}`}><Link className="block py-2.5 hover:text-teal-700" href={`/chat?conversation=${gap.conversation_id}`}><span className="line-clamp-2 text-sm font-medium" dir="auto">{gap.question}</span><span className="text-xs text-slate-400">{date(gap.asked_at)}</span></Link></li>)}</ul> : <p className="mt-6 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">✓ {t("dashboard.gapsEmpty")}</p>}</section>
       </section>
+      {radar && <section className="card mt-6 p-6"><div className="flex items-center justify-between gap-3"><h2 className="flex items-center gap-2 font-bold">{t("dashboard.deadlines")}{radar.locked && <ProBadge />}</h2><Link className="text-sm font-semibold text-teal-600" href={radar.locked ? "/billing" : "/radar"}>{radar.locked ? t("upgrade.cta") : t("common.viewAll")}</Link></div>
+        {radar.locked ? <p className="mt-3 text-sm leading-6 text-slate-500">{t("radar.lockedText")}</p> : (() => { const soon = radar.upcoming.filter(item => item.days_left >= 0 && item.days_left <= 90).slice(0, 5); return soon.length ? <ul className="mt-2 divide-y">{soon.map((item, index) => <DateRow key={`${item.document_id}-${index}`} item={item} />)}</ul> : <p className="mt-3 text-sm text-slate-500">{t("dashboard.deadlinesEmpty")}</p>; })()}</section>}
       <section className="mt-6 grid gap-6 lg:grid-cols-3">
         <BarList title={t("dashboard.topDocs")} empty={t("dashboard.topDocsEmpty")} rows={stats.top_documents.map(doc => ({ key: doc.id, label: doc.filename, value: doc.citations, display: t("dashboard.citations", { count: number(doc.citations) }), href: `/documents/${doc.id}` }))} />
         <BarList title={t("dashboard.types")} empty={t("dashboard.recentEmpty")} rows={Object.entries(stats.documents.by_type).map(([type, count]) => ({ key: type, label: type.toUpperCase(), value: count, display: number(count) }))} />

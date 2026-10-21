@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from django.conf import settings
 
 from apps.documents.models import Document
+
+if TYPE_CHECKING:
+    from openai import OpenAI
 from apps.documents.services.search import SearchResult, semantic_search
 
 SYSTEM_INSTRUCTIONS = (
@@ -104,7 +109,19 @@ def _messages(
 
 class ChatProvider(ABC):
     @abstractmethod
-    def complete(self, messages: list[dict[str, str]]) -> str: ...
+    def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str: ...
+
+    def complete_json(self, messages: list[dict[str, str]]) -> dict[str, object]:
+        """Ask for a JSON object; tolerate prose around it, return {} when there is none."""
+        text = self.complete(messages, json_mode=True)
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end <= start:
+            return {}
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
 
     def answer(
         self,
@@ -148,24 +165,30 @@ class ChatProvider(ABC):
         return rewritten
 
 
+def _chat(client: OpenAI, model: str, messages: list[dict[str, str]], json_mode: bool) -> str:
+    # Plain dicts stand in for the SDK's TypedDict message and format types.
+    request: dict[str, Any] = {"model": model, "temperature": 0, "messages": messages}
+    if json_mode:
+        # Constrains the model to emit valid JSON (supported by OpenAI, Ollama, and vLLM).
+        request["response_format"] = {"type": "json_object"}
+    response = client.chat.completions.create(**request)
+    return response.choices[0].message.content or ""
+
+
 class OpenAIChatProvider(ChatProvider):
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str:
         if not settings.OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY is required when AI_PROVIDER=openai.")
         from openai import OpenAI
 
-        response = OpenAI(api_key=settings.OPENAI_API_KEY).chat.completions.create(
-            model=settings.OPENAI_CHAT_MODEL,
-            temperature=0,
-            messages=messages,  # type: ignore[arg-type]
-        )
-        return response.choices[0].message.content or ""
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        return _chat(client, settings.OPENAI_CHAT_MODEL, messages, json_mode)
 
 
 class LocalChatProvider(ChatProvider):
     """A self-hosted model behind an OpenAI-compatible API (Ollama, vLLM, LM Studio)."""
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str:
         from openai import OpenAI
 
         client = OpenAI(
@@ -173,18 +196,13 @@ class LocalChatProvider(ChatProvider):
             api_key=settings.LOCAL_LLM_API_KEY,
             timeout=settings.LOCAL_LLM_TIMEOUT_SECONDS,
         )
-        response = client.chat.completions.create(
-            model=settings.LOCAL_CHAT_MODEL,
-            temperature=0,
-            messages=messages,  # type: ignore[arg-type]
-        )
-        return response.choices[0].message.content or ""
+        return _chat(client, settings.LOCAL_CHAT_MODEL, messages, json_mode)
 
 
 class MockChatProvider(ChatProvider):
     """A deterministic testing/development provider; it echoes the best excerpt."""
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str:
         excerpts = messages[-1]["content"].split("<untrusted_document_excerpts>\n", 1)[-1]
         excerpt = excerpts.split("</untrusted_document_excerpts>", 1)[0].strip()
         if not excerpt.startswith("[Source"):
@@ -192,6 +210,11 @@ class MockChatProvider(ChatProvider):
         # Echo the best excerpt and cite it, as a real model is asked to.
         first = excerpt.split("\n", 1)[-1].split("\n\n[Source", 1)[0].strip()
         return f"{first[:900]} [1]" if first else ""
+
+    def complete_json(self, messages: list[dict[str, str]]) -> dict[str, object]:
+        from apps.documents.services.insights import mock_extraction
+
+        return mock_extraction(messages[-1]["content"])
 
     def standalone_question(self, question: str, history: Sequence[Turn]) -> str:
         previous = [turn.content for turn in history if turn.role == "user"]

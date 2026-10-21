@@ -3,7 +3,8 @@ from __future__ import annotations
 from celery import shared_task
 from django.utils import timezone
 
-from .models import Document, DocumentProcessingJob, DocumentStatus
+from .models import Document, DocumentInsight, DocumentProcessingJob, DocumentStatus, InsightStatus
+from .services.insights import extract_insights
 from .services.processing import process_document
 
 
@@ -37,3 +38,38 @@ def process_document_task(self: object, document_id: str) -> None:
     else:
         job.completed_at = timezone.now()
         job.save(update_fields=["completed_at", "updated_at"])
+        queue_insights_if_entitled(document)
+
+
+def queue_insights_if_entitled(document: Document) -> None:
+    """On plans with the contract radar, every new document is analyzed automatically."""
+    from apps.billing.plans import CONTRACT_RADAR
+    from apps.billing.services import effective_plan
+
+    if effective_plan(document.owner_id).plan.has(CONTRACT_RADAR):
+        DocumentInsight.objects.update_or_create(
+            document=document, defaults={"status": InsightStatus.PENDING, "error_message": ""}
+        )
+        generate_insights_task.delay(str(document.id))
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(OSError,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 2},
+)
+def generate_insights_task(self: object, document_id: str) -> None:
+    insight, _ = DocumentInsight.objects.select_related("document").get_or_create(
+        document_id=document_id
+    )
+    try:
+        insight.data = extract_insights(insight.document)
+        insight.status = InsightStatus.READY
+        insight.error_message = ""
+    except Exception as exc:
+        insight.status = InsightStatus.FAILED
+        insight.error_message = str(exc)[:500]
+        insight.save(update_fields=["status", "error_message", "updated_at"])
+        raise
+    insight.save(update_fields=["data", "status", "error_message", "updated_at"])

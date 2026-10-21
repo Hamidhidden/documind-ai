@@ -3,7 +3,8 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { AppShell } from "../../components/app-shell";
 import { RichText } from "../../components/rich-text";
-import { api, Citation, Conversation, errorMessage, Message } from "../../lib/api";
+import { UpgradeNotice } from "../../components/upgrade";
+import { api, Citation, Conversation, errorMessage, isPlanRequired, Message } from "../../lib/api";
 import type { MessageKey } from "../../lib/messages";
 import { usePreferences } from "../../lib/preferences";
 
@@ -27,7 +28,7 @@ function AssistantMessage({ message }: Readonly<{ message: Message }>) {
 
 export default function ChatPage() {
   const { t } = usePreferences();
-  const [conversations, setConversations] = useState<Conversation[]>([]); const [active, setActive] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]); const [question, setQuestion] = useState(""); const [error, setError] = useState(""); const [sending, setSending] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]); const [active, setActive] = useState<string | null>(null); const [messages, setMessages] = useState<Message[]>([]); const [question, setQuestion] = useState(""); const [error, setError] = useState(""); const [sending, setSending] = useState(false); const [upgrade, setUpgrade] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const title = (chat: Conversation) => chat.title === "New conversation" ? t("chat.newTitle") : chat.title;
   async function loadConversations() { try { const response = await api<{ results: Conversation[] }>("/conversations/?limit=100"); setConversations(response.results); const requested = new URLSearchParams(window.location.search).get("conversation"); if (!active) setActive(response.results.find(item => item.id === requested)?.id ?? response.results[0]?.id ?? null); } catch (cause) { setError(errorMessage(cause, t("common.error"))); } }
@@ -43,13 +44,14 @@ export default function ChatPage() {
       setMessages(previous => [...previous, userMessage]); setQuestion("");
       const reply = await api<Message>(`/conversations/${id}/messages/`, { method: "POST", body: JSON.stringify({ content }) });
       setMessages(previous => [...previous, reply]); await loadConversations();
-    } catch (cause) { setError(errorMessage(cause, t("common.error"))); } finally { setSending(false); }
+    } catch (cause) { if (isPlanRequired(cause)) { setUpgrade(errorMessage(cause)); setMessages(previous => previous.slice(0, -1)); setQuestion(content); } else setError(errorMessage(cause, t("common.error"))); } finally { setSending(false); }
   }
   const submit = (event: FormEvent) => { event.preventDefault(); void ask(question); };
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void ask(question); } };
   const suggestions: MessageKey[] = ["chat.suggestion1", "chat.suggestion2", "chat.suggestion3"];
   return <AppShell><header className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm font-bold text-teal-600">{t("chat.eyebrow")}</p><h1 className="mt-1 text-3xl font-black">{t("chat.title")}</h1></div><button className="btn-secondary" onClick={() => void newConversation()}>{t("chat.new")}</button></header>
     {error && <p className="mt-6 rounded-xl bg-rose-50 p-3 text-rose-700">{error}</p>}
+    {upgrade && <div className="mt-6"><UpgradeNotice message={upgrade} /></div>}
     <section className="card mt-8 grid h-[calc(100vh-15rem)] min-h-[520px] overflow-hidden lg:grid-cols-[250px_1fr]">
       <aside className="hidden overflow-y-auto border-e p-4 lg:block"><p className="px-2 text-xs font-bold text-slate-400">{t("chat.conversations")}</p><div className="mt-3 space-y-1">{conversations.map(chat => <button key={chat.id} onClick={() => setActive(chat.id)} dir="auto" className={`w-full truncate rounded-lg px-3 py-2 text-start text-sm ${active === chat.id ? "bg-teal-50 font-semibold text-teal-800" : "hover:bg-slate-50"}`}>{title(chat)}</button>)}</div></aside>
       <div className="flex min-h-0 min-w-0 flex-col">

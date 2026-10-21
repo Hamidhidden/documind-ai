@@ -14,6 +14,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.billing.plans import KNOWLEDGE_GAPS
+from apps.billing.services import effective_plan, workspace_id
 from apps.collections.models import Collection
 from apps.conversations.models import Conversation, Message, MessageRole
 from apps.documents.models import Document
@@ -27,7 +29,7 @@ class DashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request: Request) -> Response:
-        user_id = request.user.id
+        user_id = workspace_id(request)
         documents = Document.objects.filter(owner_id=user_id)
         totals = documents.aggregate(
             storage_bytes=Sum("file_size"), pages=Sum("page_count"), words=Sum("word_count")
@@ -74,6 +76,7 @@ class DashboardView(APIView):
             if document_id in existing
         ][:5]
 
+        gaps_unlocked = effective_plan(user_id).plan.has(KNOWLEDGE_GAPS)
         gaps = []
         for answer in unanswered.select_related("conversation").order_by("-created_at")[:5]:
             question = (
@@ -116,6 +119,9 @@ class DashboardView(APIView):
                 },
                 "activity": activity,
                 "top_documents": top_documents,
-                "knowledge_gaps": gaps,
+                # Locked plans still see how many gaps exist: a reason to upgrade.
+                "knowledge_gaps": gaps if gaps_unlocked else [],
+                "knowledge_gaps_locked": not gaps_unlocked,
+                "knowledge_gaps_count": unanswered.count(),
             }
         )

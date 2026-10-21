@@ -8,8 +8,8 @@ import type { MessageKey } from "../lib/messages";
 import { PreferenceSwitches, usePreferences } from "../lib/preferences";
 
 const links: [MessageKey, string][] = [
-  ["nav.dashboard", "/dashboard"], ["nav.documents", "/documents"], ["nav.collections", "/collections"],
-  ["nav.chat", "/chat"], ["nav.settings", "/settings"]
+  ["nav.dashboard", "/dashboard"], ["nav.documents", "/documents"], ["nav.radar", "/radar"], ["nav.collections", "/collections"],
+  ["nav.chat", "/chat"], ["nav.billing", "/billing"], ["nav.settings", "/settings"]
 ];
 
 export function Brand() {

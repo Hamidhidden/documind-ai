@@ -74,5 +74,33 @@ export type Dashboard = {
   activity: { date: string; questions: number }[];
   top_documents: { id: string; filename: string; citations: number }[];
   knowledge_gaps: { question: string; conversation_id: string; asked_at: string }[];
+  knowledge_gaps_locked: boolean; knowledge_gaps_count: number;
 };
 
+
+export type PlanCode = "free" | "pro" | "enterprise";
+export type PlanInfo = {
+  code: PlanCode; purchasable: boolean; features: string[];
+  prices: { monthly: number | null; yearly: number | null };
+  limits: { documents: number | null; storage_mb: number | null; monthly_questions: number | null; seats: number | null };
+};
+export type Billing = {
+  plan: PlanInfo; source: "license" | "subscription" | "trial" | "free"; ends_at: string | null;
+  usage: { documents: number; storage_bytes: number; questions_this_month: number };
+  catalog: PlanInfo[]; gateway: string;
+  license: { customer: string; plan: PlanCode; seats: number | null; expires: string; expired: boolean } | null;
+  payments: { id: string; plan: PlanCode; interval: "monthly" | "yearly"; amount_toman: number; status: "pending" | "paid" | "failed"; reference_id: string; created_at: string }[];
+};
+export type RadarDate = { label: string; text: string; kind: string; date: string; days_left: number; document_id: string; document_name: string };
+export type RadarRisk = { clause?: string; risk?: string; severity?: "high" | "medium" | "low"; document_id: string; document_name: string };
+export type Radar = { locked: boolean; upcoming: RadarDate[]; risks: RadarRisk[]; analyzed: number };
+export type InsightData = {
+  document_type: string; title: string; summary: string;
+  parties: { name?: string; role?: string }[]; amounts: { label?: string; value?: string; currency?: string }[];
+  dates: { label: string; text: string; kind: string; date: string }[];
+  obligations: { party?: string; obligation?: string }[]; risks: { clause?: string; risk?: string; severity?: string }[];
+};
+export type Insight = { status: "PENDING" | "READY" | "FAILED" | null; data: InsightData | null; updated_at?: string };
+
+/** True when the server refused because the workspace's plan does not include this. */
+export function isPlanRequired(error: unknown): boolean { return (error as ApiError)?.error?.code === 402; }

@@ -10,7 +10,7 @@ class RecordingProvider(rag.ChatProvider):
     def __init__(self) -> None:
         self.calls: list[list[dict[str, str]]] = []
 
-    def complete(self, messages: list[dict[str, str]]) -> str:
+    def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str:
         self.calls.append(messages)
         if messages[0]["content"] == rag.REWRITE_INSTRUCTIONS:
             return "اجاره‌بهای سال دوم قرارداد دفتر چقدر است؟"
@@ -51,7 +51,7 @@ def test_first_question_is_not_rewritten() -> None:
 
 def test_translated_rewrite_is_discarded() -> None:
     class Translator(RecordingProvider):
-        def complete(self, messages: list[dict[str, str]]) -> str:
+        def complete(self, messages: list[dict[str, str]], *, json_mode: bool = False) -> str:
             return "چگونه دورکاری را مدیریت می‌کنید؟"
 
     history = [rag.Turn("user", "اجاره ماهانه چقدر است؟")]

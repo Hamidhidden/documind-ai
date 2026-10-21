@@ -9,6 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.billing.services import check_question
 from apps.documents.models import Document, DocumentStatus
 
 from .models import Conversation, DocumentSummary, Message, MessageRole, SummaryStatus
@@ -49,6 +50,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return Response(MessageSerializer(conversation.messages.all(), many=True).data)
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        check_question(request.user.id)
         question = serializer.validated_data["content"]
         history = [
             Turn(role=message.role, content=message.content)

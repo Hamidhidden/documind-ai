@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "apps.documents",
     "apps.collections",
     "apps.conversations",
+    "apps.billing",
 ]
 
 MIDDLEWARE = [
@@ -181,3 +182,24 @@ SEMANTIC_SEARCH_MAX_DISTANCE = float(
 SEMANTIC_SEARCH_RELATIVE_MARGIN = float(
     os.getenv("SEMANTIC_SEARCH_RELATIVE_MARGIN") or ("1.0" if AI_PROVIDER == "mock" else "0.12")
 )
+
+# Billing. Prices are in Toman and are placeholders: set real ones in .env.
+BILLING_TRIAL_DAYS = int(os.getenv("BILLING_TRIAL_DAYS", "14"))
+BILLING_PRICES_TOMAN = {
+    "pro": {
+        "monthly": int(os.getenv("PRICE_PRO_MONTHLY_TOMAN", "3000000")),
+        # Two months free on yearly billing.
+        "yearly": int(os.getenv("PRICE_PRO_YEARLY_TOMAN", "30000000")),
+    },
+}
+# `dev` simulates payments locally; `zarinpal` uses the real gateway (or its sandbox).
+BILLING_GATEWAY = os.getenv("BILLING_GATEWAY", "dev")
+ZARINPAL_MERCHANT_ID = os.getenv("ZARINPAL_MERCHANT_ID", "")
+ZARINPAL_SANDBOX = os.getenv("ZARINPAL_SANDBOX", "true").lower() == "true"
+BILLING_CALLBACK_URL = os.getenv(
+    "BILLING_CALLBACK_URL", "http://localhost:8000/api/v1/billing/callback/"
+)
+FRONTEND_URL = os.getenv("FRONTEND_URL", CORS_ALLOWED_ORIGINS[0]).rstrip("/")
+# Self-hosted installs: a signed license sets the plan and user seats for the whole install.
+DOCUMIND_LICENSE = os.getenv("DOCUMIND_LICENSE", "")
+DOCUMIND_LICENSE_PUBLIC_KEY = os.getenv("DOCUMIND_LICENSE_PUBLIC_KEY", "")

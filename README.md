@@ -13,6 +13,8 @@ It is intentionally designed as a real portfolio project: a Django/DRF API with 
 - Persian-first: right-to-left Persian interface, Persian text normalization (Arabic ي/ك, Persian/Arabic digits, diacritics, PDF presentation forms) applied to documents and queries, and answers in the language of the question
 - Conversational chat: follow-up questions ("and the second year?") are rewritten into standalone searches, answers cite sources inline as clickable [1] chips with the excerpt, and a reply that cites nothing is treated as "not in the documents"
 - Analytics dashboard: documents, knowledge-base size, questions, answer rate, 14-day activity, most-cited documents, and **knowledge gaps** (questions the documents could not answer)
+- Subscriptions: Free / Pro / Enterprise plans with usage limits, a 14-day trial, Zarinpal payments, and offline-signed licenses for on-premises installs
+- Contract radar: AI extraction of parties, amounts, obligations, deadlines, and risky clauses, with upcoming-deadline alerts
 - Persian/English interface switch (RTL/LTR, Jalali/Gregorian dates, localized server errors) and light/dark themes
 - Interchangeable AI providers: self-hosted (Ollama, vLLM, or any OpenAI-compatible server), OpenAI, or a deterministic mock for development and tests
 - pgvector cosine similarity retrieval with owner, document, and collection filters; keyword search is available now and hybrid search can build on the same service boundary
@@ -61,6 +63,31 @@ The embedding size is fixed in the database when it is first created (1024 for `
 Hardware: `qwen2.5:7b` needs about 8 GB of RAM and is slow on CPU only; an NVIDIA GPU (add `-f docker-compose.yml -f docker-compose.gpu.yml` to the compose command) makes answers fast. On larger servers use `qwen2.5:14b` or bigger via `LOCAL_CHAT_MODEL`. Any OpenAI-compatible server (vLLM, LM Studio, a GPU box elsewhere on the company network) works by pointing `LOCAL_LLM_BASE_URL` at it.
 
 To use OpenAI instead, set `AI_PROVIDER=openai` and `OPENAI_API_KEY`. Document excerpts are then sent to OpenAI.
+
+## Plans, payments, and licenses
+
+| Plan | For | Includes |
+| --- | --- | --- |
+| Free | Trying it out | 20 documents, 50 MB, 100 questions a month, chat, search, short summaries |
+| Pro | Teams (monthly or yearly) | 1,000 documents, 5 GB, 5,000 questions a month, **contract radar**, all summary types, knowledge-gap reports |
+| Enterprise | Holdings, on-premises | Unlimited, installed on the customer's servers under a signed license |
+
+New workspaces get a 14-day Pro trial. Limits return HTTP 402 and the UI shows an upgrade prompt.
+
+**Contract radar** reads every uploaded document (automatically on Pro) and extracts parties, amounts, obligations, dates, and risky clauses (penalties, automatic renewal, one-sided termination, ...). Dates written in the document are converted from the Jalali calendar in code, and the radar lists upcoming deadlines, including notice deadlines such as "written notice one month before the end".
+
+**Online payments** use Zarinpal (`BILLING_GATEWAY=zarinpal`, `ZARINPAL_MERCHANT_ID`, `ZARINPAL_SANDBOX`). The default `dev` gateway simulates a successful payment for local testing. Paying again before a period ends adds to the remaining time.
+
+**On-premises licenses** are signed offline with Ed25519, so customer servers need no connection to you:
+
+```bash
+# Once: create your signing key pair. Keep the private key secret; ship only the public key.
+python src/manage.py issue_license --generate-keys
+# Per customer: sign a license and give them the DOCUMIND_LICENSE line.
+python src/manage.py issue_license --private-key <private> --customer "Holding X" --plan enterprise --seats 200 --expires 2027-03-20
+```
+
+The customer sets `DOCUMIND_LICENSE` and `DOCUMIND_LICENSE_PUBLIC_KEY` in `.env`. The license sets the plan for the whole install, registration stops at the seat count, and an expired license falls back to the free plan.
 
 ## Local backend development
 
