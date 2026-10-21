@@ -41,10 +41,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return DocumentRenameSerializer  # type: ignore[return-value]
         return DocumentSerializer
 
-    def perform_create(self, serializer: DocumentUploadSerializer) -> None:
+    def create(self, request: Request, *args: object, **kwargs: object) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             document = serializer.save()
             transaction.on_commit(lambda: process_document_task.delay(str(document.id)))
+        # The upload serializer only accepts the file; respond with the full document.
+        return Response(DocumentSerializer(document).data, status=201)
 
     @action(detail=True, methods=["get"])
     def download(self, _request: Request, pk: UUID | None = None) -> FileResponse:
@@ -93,8 +97,11 @@ class SearchView(APIView):
                 if request.query_params.get("collection_id")
                 else None
             )
+            limit = min(max(int(request.query_params.get("limit", "5")), 1), 25)
         except ValueError as exc:
-            raise ValidationError("document_id and collection_id must be UUIDs.") from exc
+            raise ValidationError(
+                "document_id and collection_id must be UUIDs and limit must be an integer."
+            ) from exc
         if mode == "keyword":
             results = list(keyword_search(user_id=request.user.id, query=query))
             return Response({"results": ChunkSearchResultSerializer(results, many=True).data})
@@ -105,7 +112,7 @@ class SearchView(APIView):
             query=query,
             document_id=document_id,
             collection_id=collection_id,
-            limit=min(int(request.query_params.get("limit", "5")), 25),
+            limit=limit,
         )
         serialized = ChunkSearchResultSerializer(
             [result.chunk for result in semantic_results], many=True

@@ -39,21 +39,24 @@ docker compose up --build
 
 Open the client at `http://localhost:3000`, API documentation at `http://localhost:8000/api/docs/`, and the OpenAPI schema at `http://localhost:8000/api/schema/`.
 
-For a credential-free local experience, leave `AI_PROVIDER=mock`. In a deployment, set `AI_PROVIDER=openai` and supply `OPENAI_API_KEY`; the OpenAI providers are already implemented and selected by configuration.
+For a credential-free local experience, leave `AI_PROVIDER=mock`: it uses a simple word-overlap embedding so search and chat still work (answers are the best matching excerpts, not generated text). In a deployment, set `AI_PROVIDER=openai` and supply `OPENAI_API_KEY`; the OpenAI providers are already implemented and selected by configuration.
 
 ## Local backend development
 
-Requirements: Python 3.12+, PostgreSQL with the `vector` extension, and Redis.
+Requirements: Python 3.12+, PostgreSQL with the `vector` extension, and Redis. The quickest way to get the two services is Docker: `docker compose up -d postgres redis` (then add `ports` for them, or run your own).
 
 ```bash
 python -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-cp .env.example .env
-# Set POSTGRES_HOST=localhost and REDIS_URL=redis://localhost:6379/0 in .env
+.venv/bin/pip install -e ".[dev]"          # Windows: .venv\Scripts\pip install -e ".[dev]"
+cp .env.example .env                        # Windows: copy .env.example .env
+# In .env set POSTGRES_HOST=localhost and REDIS_URL=redis://localhost:6379/0
 python src/manage.py migrate
 python src/manage.py runserver
-celery -A config.celery worker --loglevel=INFO
+# In a second terminal, from the src directory:
+cd src && celery -A config.celery worker --loglevel=INFO   # Windows: add --pool=solo
 ```
+
+Settings read `.env` from the repository root automatically; real environment variables take precedence. If you do not want to run a worker, set `CELERY_TASK_ALWAYS_EAGER=true` so uploads are processed inside the API request.
 
 On Windows, activate the virtual environment using `.venv\Scripts\Activate.ps1`.
 

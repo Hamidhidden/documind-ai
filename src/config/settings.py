@@ -7,6 +7,21 @@ from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """Read KEY=VALUE lines from .env for local runs; real environment variables win."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+_load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-secret-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost").split(",")]
@@ -137,3 +152,8 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "mock")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+# Maximum cosine distance for a chunk to count as relevant. The mock embeddings are a sparse
+# bag of words, so they need a much looser cut-off than real semantic embeddings.
+SEMANTIC_SEARCH_MAX_DISTANCE = float(
+    os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE", "0.65" if AI_PROVIDER == "openai" else "0.97")
+)

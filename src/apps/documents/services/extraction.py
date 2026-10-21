@@ -31,7 +31,7 @@ class PDFExtractor(DocumentExtractor):
 
 class TXTExtractor(DocumentExtractor):
     def extract(self, path: Path) -> list[ExtractedPage]:
-        return [ExtractedPage(path.read_text(encoding="utf-8"), None)]
+        return [ExtractedPage(path.read_text(encoding="utf-8-sig"), None)]
 
 
 class MarkdownExtractor(TXTExtractor):

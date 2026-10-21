@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from django.conf import settings
 from django.db.models import QuerySet
 from pgvector.django import CosineDistance
 
@@ -22,10 +23,12 @@ def semantic_search(
     user_id: int,
     query: str,
     limit: int = 5,
-    threshold: float = 0.65,
+    threshold: float | None = None,
     document_id: UUID | None = None,
     collection_id: UUID | None = None,
 ) -> list[SearchResult]:
+    if threshold is None:
+        threshold = settings.SEMANTIC_SEARCH_MAX_DISTANCE
     embedding = embedding_provider().embed_one(query)
     chunks: QuerySet[DocumentChunk] = DocumentChunk.objects.filter(
         document__owner_id=user_id,

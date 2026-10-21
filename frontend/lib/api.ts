@@ -17,11 +17,36 @@ export function saveTokens(access: string, refresh: string): void { localStorage
 export function clearTokens(): void { localStorage.removeItem("accessToken"); localStorage.removeItem("refreshToken"); }
 export function isAuthenticated(): boolean { return Boolean(token()); }
 
-export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+let refreshing: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refresh = typeof window === "undefined" ? null : localStorage.getItem("refreshToken");
+  if (!refresh) return false;
+  const response = await fetch(`${API_URL}/auth/refresh/`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh }) }).catch(() => null);
+  if (!response?.ok) return false;
+  const data = (await response.json()) as { access: string; refresh?: string };
+  saveTokens(data.access, data.refresh ?? refresh);
+  return true;
+}
+
+function redirectToLogin(): void {
+  clearTokens();
+  if (typeof window !== "undefined" && !["/login", "/register"].includes(window.location.pathname)) window.location.href = "/login";
+}
+
+export async function api<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const headers = new Headers(options.headers);
   if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (token()) headers.set("Authorization", `Bearer ${token()}`);
   const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  // Access tokens live 15 minutes: refresh once (shared across parallel requests) and retry.
+  if (response.status === 401 && token() && !retried) {
+    refreshing ??= refreshAccessToken().finally(() => { refreshing = null; });
+    if (await refreshing) return api<T>(path, options, true);
+    redirectToLogin();
+  } else if (response.status === 401 && !path.startsWith("/auth/")) {
+    redirectToLogin();
+  }
   if (response.status === 204) return undefined as T;
   const data: unknown = await response.json().catch(() => ({}));
   if (!response.ok) throw data as ApiError;
@@ -31,6 +56,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 export function errorMessage(error: unknown): string {
   const details = (error as ApiError)?.error?.details;
   if (!details) return "Something went wrong. Please try again.";
+  if (typeof details === "string") return details;
   const first = Object.values(details)[0];
   return Array.isArray(first) ? first[0] : String(first);
 }

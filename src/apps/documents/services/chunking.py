@@ -16,7 +16,7 @@ class TextChunker:
     """A deterministic, independently testable word-window chunker."""
 
     def __init__(self, chunk_size: int, overlap: int) -> None:
-        if not 1 <= overlap < chunk_size:
+        if not 0 <= overlap < chunk_size:
             raise ValueError("overlap must be non-negative and smaller than chunk_size")
         self.chunk_size = chunk_size
         self.overlap = overlap

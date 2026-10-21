@@ -15,3 +15,8 @@ staticfiles/
 dist/
 .DS_Store
 
+build/
+*.egg-info/
+work/
+.venv/
+venv/
