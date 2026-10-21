@@ -5,6 +5,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.http import FileResponse
+from django.utils import timezone
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -12,15 +13,60 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Document
+from apps.billing.plans import ADVANCED_SUMMARIES, CONTRACT_RADAR
+from apps.billing.services import check_upload, effective_plan, require_feature
+
+from .models import Document, DocumentInsight, DocumentStatus, InsightStatus
 from .serializers import (
     ChunkSearchResultSerializer,
     DocumentRenameSerializer,
     DocumentSerializer,
     DocumentUploadSerializer,
 )
+from .services.insights import upcoming_dates
 from .services.search import keyword_search, semantic_search
-from .tasks import process_document_task
+from .tasks import generate_insights_task, process_document_task
+
+
+def _insight_json(insight: DocumentInsight | None) -> dict[str, object]:
+    if insight is None:
+        return {"status": None, "data": None}
+    return {
+        "status": insight.status,
+        "data": insight.data or None,
+        "updated_at": insight.updated_at.isoformat(),
+    }
+
+
+class RadarView(APIView):
+    """Upcoming deadlines and flagged risks across every analyzed document."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        if not effective_plan(request.user.id).plan.has(CONTRACT_RADAR):
+            return Response({"locked": True, "upcoming": [], "risks": [], "analyzed": 0})
+        insights = list(
+            DocumentInsight.objects.filter(
+                document__owner_id=request.user.id, status=InsightStatus.READY
+            ).select_related("document")
+        )
+        pairs = [(insight.document, insight.data) for insight in insights]
+        risks = [
+            {**risk, "document_id": str(document.id), "document_name": document.filename}
+            for document, data in pairs
+            for risk in data.get("risks") or []
+            if isinstance(risk, dict)
+        ]
+        order = {"high": 0, "medium": 1, "low": 2}
+        return Response(
+            {
+                "locked": False,
+                "upcoming": upcoming_dates(pairs, timezone.localdate()),
+                "risks": sorted(risks, key=lambda risk: order.get(str(risk.get("severity")), 1)),
+                "analyzed": len(insights),
+            }
+        )
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -44,6 +90,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     def create(self, request: Request, *args: object, **kwargs: object) -> Response:
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        check_upload(request.user.id, serializer.validated_data["file"].size or 0)
         with transaction.atomic():
             document = serializer.save()
             transaction.on_commit(lambda: process_document_task.delay(str(document.id)))
@@ -68,9 +115,27 @@ class DocumentViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["get", "post"])
+    def insights(self, request: Request, pk: UUID | None = None) -> Response:
+        """GET the contract-radar analysis; POST to (re)run it. A premium feature."""
+        document = self.get_object()
+        if request.method == "POST":
+            require_feature(request.user.id, CONTRACT_RADAR)
+            if document.status != DocumentStatus.READY:
+                raise ValidationError("Document must be ready before analysis.")
+            insight, _ = DocumentInsight.objects.update_or_create(
+                document=document, defaults={"status": InsightStatus.PENDING, "error_message": ""}
+            )
+            transaction.on_commit(lambda: generate_insights_task.delay(str(document.id)))
+            return Response(_insight_json(insight), status=202)
+        insight = DocumentInsight.objects.filter(document=document).first()
+        return Response(_insight_json(insight))
+
     @action(detail=True, methods=["post"])
     def summarize(self, request: Request, pk: UUID | None = None) -> Response:
         document = self.get_object()
+        if request.data.get("mode", "short") != "short":
+            require_feature(request.user.id, ADVANCED_SUMMARIES)
         from apps.conversations.views import SummaryViewSet
 
         return SummaryViewSet().create_for_document(

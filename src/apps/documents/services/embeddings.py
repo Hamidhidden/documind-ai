@@ -30,6 +30,32 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         return [item.embedding for item in response.data]
 
 
+class LocalEmbeddingProvider(EmbeddingProvider):
+    """Self-hosted embeddings through an OpenAI-compatible server such as Ollama or vLLM.
+
+    Document text never leaves the company's own infrastructure.
+    """
+
+    def embed_many(self, values: list[str]) -> list[list[float]]:
+        from openai import OpenAI
+
+        client = OpenAI(base_url=settings.LOCAL_LLM_BASE_URL, api_key=settings.LOCAL_LLM_API_KEY)
+        vectors: list[list[float]] = []
+        # Small batches keep memory bounded on modest self-hosted hardware.
+        for start in range(0, len(values), 32):
+            response = client.embeddings.create(
+                model=settings.LOCAL_EMBEDDING_MODEL, input=values[start : start + 32]
+            )
+            vectors.extend(item.embedding for item in response.data)
+        for vector in vectors:
+            if len(vector) != settings.EMBEDDING_DIMENSIONS:
+                raise RuntimeError(
+                    f"{settings.LOCAL_EMBEDDING_MODEL} returned {len(vector)} dimensions but "
+                    f"EMBEDDING_DIMENSIONS is {settings.EMBEDDING_DIMENSIONS}."
+                )
+        return vectors
+
+
 class MockEmbeddingProvider(EmbeddingProvider):
     """Deterministic local embeddings used only for tests and credential-free development.
 
@@ -61,11 +87,16 @@ class MockEmbeddingProvider(EmbeddingProvider):
 _STOPWORDS = frozenset(
     "the and for are but not you all any can had her was one our out has have this that with "
     "what when where which who why how from they them their there these those into about would "
-    "could should does did its it's also than then been being were will just".split()
+    "could should does did its it's also than then been being were will just "
+    # Common Persian function words of three or more letters.
+    "این برای است هست شود شده کرد کند کنید دارد دارند باشد بود هستند آیا چیست چگونه چطور "
+    "چه‌طور کدام چرا وقتی همه".split()
 )
 
 
 def embedding_provider() -> EmbeddingProvider:
     if settings.AI_PROVIDER == "openai":
         return OpenAIEmbeddingProvider()
+    if settings.AI_PROVIDER == "local":
+        return LocalEmbeddingProvider()
     return MockEmbeddingProvider()

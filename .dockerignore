@@ -14,3 +14,5 @@ work
 build
 *.egg-info
 .venv
+.env.production
+backups

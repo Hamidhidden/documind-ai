@@ -1,0 +1,5 @@
+# Files that run inside Linux containers must keep Unix line endings, even on Windows.
+*.sh text eol=lf
+deploy/Caddyfile text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf

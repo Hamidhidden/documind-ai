@@ -20,13 +20,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # Self-hosted AI (`docker compose --profile local-ai up`): models run on this machine and
+  # document text never leaves it. For an NVIDIA GPU, also pass `-f docker-compose.gpu.yml`.
+  ollama:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    volumes: [ollama_data:/root/.ollama]
+    environment:
+      # Ollama's 4k default silently truncates long Persian prompts (contract analysis, six
+      # retrieved chunks); 12k fits beside both models on an 8 GB GPU.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-12288}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  ollama-models:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull $${LOCAL_EMBEDDING_MODEL} && ollama pull $${LOCAL_CHAT_MODEL}"]
+    env_file: .env
+    depends_on:
+      ollama: { condition: service_healthy }
+    restart: "no"
+
   web:
     build: .
-    command: sh -c "python src/manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    command: sh -c "python src/manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 300 --access-logfile -"
     env_file: .env
     environment:
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ollama:11434/v1}
     volumes: [media_data:/app/media]
     ports: ["8000:8000"]
     depends_on:
@@ -40,19 +68,23 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ollama:11434/v1}
     volumes: [media_data:/app/media]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 
   frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+        NEXT_PUBLIC_SALES_EMAIL: ${NEXT_PUBLIC_SALES_EMAIL:-}
     ports: ["3000:3000"]
     depends_on: [web]
 
 volumes:
   postgres_data:
   media_data:
+  ollama_data:
 

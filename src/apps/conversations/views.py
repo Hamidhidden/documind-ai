@@ -9,6 +9,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.billing.services import check_question
 from apps.documents.models import Document, DocumentStatus
 
 from .models import Conversation, DocumentSummary, Message, MessageRole, SummaryStatus
@@ -19,7 +20,7 @@ from .serializers import (
     SendMessageSerializer,
     SummarySerializer,
 )
-from .services.rag import answer_question, summarize_document
+from .services.rag import HISTORY_TURNS, Turn, answer_question, summarize_document
 from .tasks import generate_summary_task
 
 
@@ -49,11 +50,21 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return Response(MessageSerializer(conversation.messages.all(), many=True).data)
         serializer = SendMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        check_question(request.user.id)
         question = serializer.validated_data["content"]
+        history = [
+            Turn(role=message.role, content=message.content)
+            # A question and its answer can share a timestamp; "role" breaks the tie so the
+            # answer sorts after its question.
+            for message in conversation.messages.order_by("-created_at", "role")[:HISTORY_TURNS][
+                ::-1
+            ]
+        ]
         answer = answer_question(
             user_id=request.user.id,
             question=question,
             document_id=conversation.document_id,
+            history=history,
         )
         with transaction.atomic():
             Message.objects.create(

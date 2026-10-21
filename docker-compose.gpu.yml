@@ -1,0 +1,11 @@
+# Run the self-hosted models on an NVIDIA GPU:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile local-ai up
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

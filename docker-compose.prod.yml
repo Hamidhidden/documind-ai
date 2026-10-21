@@ -1,0 +1,140 @@
+# Production: HTTPS on your domain, nothing but Caddy exposed to the internet.
+#   cp .env.production.example .env.production   # then fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Self-hosted AI: add `--profile local-ai`; with an NVIDIA GPU also `-f docker-compose.gpu.yml`.
+
+x-backend: &backend
+  build: .
+  env_file: .env.production
+  environment:
+    DJANGO_ENV: production
+    DJANGO_DEBUG: "false"
+    POSTGRES_HOST: postgres
+    REDIS_URL: redis://redis:6379/0
+    CACHE_URL: redis://redis:6379/1
+    DJANGO_ALLOWED_HOSTS: ${DOMAIN},web,localhost
+    DJANGO_CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+    FRONTEND_URL: https://${DOMAIN}
+    BILLING_CALLBACK_URL: https://${DOMAIN}/api/v1/billing/callback/
+    LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ollama:11434/v1}
+  volumes: [media_data:/app/media]
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on: [web, frontend]
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-documind}
+      POSTGRES_USER: ${POSTGRES_USER:-documind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes: [redis_data:/data]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    <<: *backend
+    command: sh -c "python src/manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 4 --timeout 300 --access-logfile -"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *backend
+    command: celery -A config.celery worker --loglevel=INFO --concurrency 2
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}/api/v1
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SALES_EMAIL: ${NEXT_PUBLIC_SALES_EMAIL:-}
+        NEXT_PUBLIC_COMPANY_NAME: ${NEXT_PUBLIC_COMPANY_NAME:-}
+        NEXT_PUBLIC_COMPANY_ADDRESS: ${NEXT_PUBLIC_COMPANY_ADDRESS:-}
+        NEXT_PUBLIC_COMPANY_PHONE: ${NEXT_PUBLIC_COMPANY_PHONE:-}
+        NEXT_PUBLIC_CONTACT_EMAIL: ${NEXT_PUBLIC_CONTACT_EMAIL:-}
+        NEXT_PUBLIC_ENAMAD_ID: ${NEXT_PUBLIC_ENAMAD_ID:-}
+        NEXT_PUBLIC_ENAMAD_CODE: ${NEXT_PUBLIC_ENAMAD_CODE:-}
+        NEXT_PUBLIC_LEGAL_REVIEWED: ${NEXT_PUBLIC_LEGAL_REVIEWED:-}
+    restart: unless-stopped
+
+  backup:
+    image: pgvector/pgvector:pg16
+    entrypoint: ["sh", "/backup.sh"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-documind}
+      POSTGRES_USER: ${POSTGRES_USER:-documind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - media_data:/media:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  ollama:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    volumes: [ollama_data:/root/.ollama]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-12288}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  ollama-models:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull $${LOCAL_EMBEDDING_MODEL} && ollama pull $${LOCAL_CHAT_MODEL}"]
+    env_file: .env.production
+    depends_on:
+      ollama: { condition: service_healthy }
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  caddy_data:
+  caddy_config:
+  ollama_data:

@@ -2,11 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-* { box-sizing: border-box; }
-body { margin: 0; background: #f5f7fb; }
-button, input, select, textarea { font: inherit; }
-.card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm; }
-.btn { @apply inline-flex items-center justify-center rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60; }
-.btn-secondary { @apply inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50; }
-.field { @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100; }
+:root {
+  --page: #f5f7fb; --surface: #ffffff; --surface-muted: #f8fafc; --surface-sunken: #f1f5f9;
+  --border: #e2e8f0; --ink: #162236; --ink-2: #334155; --ink-3: #64748b; --ink-4: #94a3b8;
+  --accent-soft: #f0fdfa; --accent-ink: #0f766e; --chart: #0d9488; --chart-muted: #ccfbf1;
+  --danger-soft: #fff1f2; --danger-ink: #be123c; --ok-soft: #ecfdf5; --ok-ink: #047857;
+  --bubble: #162236; --bubble-ink: #ffffff; --btn: #162236; --btn-hover: #334155;
+  color-scheme: light;
+}
+.dark {
+  --page: #0b1220; --surface: #131c2e; --surface-muted: #182337; --surface-sunken: #1d2a40;
+  --border: #26344d; --ink: #e6edf7; --ink-2: #c5d0e0; --ink-3: #93a3ba; --ink-4: #6b7c95;
+  --accent-soft: #10302f; --accent-ink: #5eead4; --chart: #11a99a; --chart-muted: #173b3a;
+  --danger-soft: #3a1621; --danger-ink: #fda4af; --ok-soft: #0f2e25; --ok-ink: #6ee7b7;
+  --bubble: #0f766e; --bubble-ink: #f0fdfa; --btn: #0f9488; --btn-hover: #11a99a;
+  color-scheme: dark;
+}
 
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font-family: "Vazirmatn Variable", Tahoma, sans-serif; }
+button, input, select, textarea { font: inherit; }
+.card { @apply rounded-2xl border shadow-sm; background: var(--surface); border-color: var(--border); }
+.btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60; background: var(--btn); }
+.btn:hover:not(:disabled) { background: var(--btn-hover); }
+.btn-secondary { @apply inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60; background: var(--surface); border-color: var(--border); color: var(--ink-2); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-muted); }
+.field { @apply w-full rounded-xl border px-3 py-2.5 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100; background: var(--surface); border-color: var(--border); color: var(--ink); }
+.dark .field:focus { --tw-ring-color: #134e4a; }
+.field::placeholder { color: var(--ink-4); }
+
+/* Page code uses familiar utility names; in dark mode they resolve to the dark tokens. */
+.bg-white { background-color: var(--surface) !important; }
+.bg-cloud { background-color: var(--page) !important; }
+.bg-slate-50, .hover\:bg-slate-50:hover { background-color: var(--surface-muted) !important; }
+.bg-slate-100 { background-color: var(--surface-sunken) !important; }
+.bg-teal-50 { background-color: var(--accent-soft) !important; }
+.bg-rose-50 { background-color: var(--danger-soft) !important; }
+.bg-emerald-50 { background-color: var(--ok-soft) !important; }
+.text-ink { color: var(--ink) !important; }
+.text-slate-800, .text-slate-700 { color: var(--ink-2) !important; }
+.text-slate-600, .text-slate-500 { color: var(--ink-3) !important; }
+.text-slate-400 { color: var(--ink-4) !important; }
+.text-teal-700, .text-teal-800, .text-teal-600, .hover\:text-teal-700:hover { color: var(--accent-ink) !important; }
+.text-rose-700 { color: var(--danger-ink) !important; }
+.text-emerald-700 { color: var(--ok-ink) !important; }
+.border, .border-b, .border-t, .border-e, .border-slate-200, .divide-y > * + * { border-color: var(--border) !important; }
+.dark .bg-amber-50 { background-color: #33270f !important; }
+.dark .text-amber-900, .dark .text-amber-800 { color: #fcd34d !important; }
+.dark .border-amber-200 { border-color: #5c4413 !important; }
+.bubble-user { background: var(--bubble); color: var(--bubble-ink); }
+.dark .status-chip { filter: saturate(0.9) brightness(0.9); }

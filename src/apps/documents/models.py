@@ -69,3 +69,20 @@ class DocumentProcessingJob(TimestampedUUIDModel):
 
     class Meta:
         ordering = ("-created_at",)
+
+
+class InsightStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    READY = "READY", "Ready"
+    FAILED = "FAILED", "Failed"
+
+
+class DocumentInsight(TimestampedUUIDModel):
+    """Structured facts the AI extracted from a document: parties, amounts, dates, risks."""
+
+    document = models.OneToOneField(Document, on_delete=models.CASCADE, related_name="insight")
+    status = models.CharField(
+        max_length=16, choices=InsightStatus.choices, default=InsightStatus.PENDING
+    )
+    data = models.JSONField(default=dict, blank=True)
+    error_message = models.CharField(max_length=500, blank=True)
