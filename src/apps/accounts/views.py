@@ -10,6 +10,7 @@ from .serializers import RegisterSerializer, UserSerializer
 class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
+    throttle_scope = "register"
 
     def perform_create(self, serializer: RegisterSerializer) -> None:
         check_new_seat()

@@ -36,6 +36,21 @@ def _plan_json(plan: Plan) -> dict[str, object]:
     }
 
 
+class PlansView(APIView):
+    """The public price list, for the landing page."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes: list[type] = []
+
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "plans": [_plan_json(plan) for plan in PLANS.values()],
+                "trial_days": settings.BILLING_TRIAL_DAYS,
+            }
+        )
+
+
 class BillingView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

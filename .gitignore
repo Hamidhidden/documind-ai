@@ -20,3 +20,6 @@ build/
 work/
 .venv/
 venv/
+.env.production
+backups/
+backups-localtest/

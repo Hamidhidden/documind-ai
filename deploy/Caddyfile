@@ -1,0 +1,36 @@
+# One domain for everything: Caddy gets and renews the HTTPS certificate automatically
+# (Let's Encrypt) once DOMAIN points at this server and ports 80/443 are open.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Uploads are capped at 25 MB by the app; leave headroom for the multipart envelope.
+	request_body {
+		max_size 30MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	@backend path /api/* /admin/* /static/* /health/ /ready/
+	handle @backend {
+		reverse_proxy web:8000 {
+			# Chat answers wait on the language model.
+			transport http {
+				read_timeout 300s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

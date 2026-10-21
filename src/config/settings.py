@@ -6,6 +6,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -22,9 +24,16 @@ def _load_dotenv(path: Path) -> None:
 
 
 _load_dotenv(BASE_DIR / ".env")
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-secret-change-me")
+# `production` turns on the hardening below and refuses to start with unsafe defaults.
+PRODUCTION = os.getenv("DJANGO_ENV", "development") == "production"
+DEV_SECRET_KEY = "unsafe-development-secret-change-me"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", DEV_SECRET_KEY)
 DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost").split(",")]
+if PRODUCTION and (SECRET_KEY == DEV_SECRET_KEY or len(SECRET_KEY) < 40 or DEBUG):
+    raise ImproperlyConfigured(
+        "Production needs DJANGO_DEBUG=false and a random DJANGO_SECRET_KEY of 40+ characters."
+    )
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -46,6 +55,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves collected static files (admin, API docs) without a separate web server.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -102,6 +113,16 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": (
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if PRODUCTION
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        )
+    },
+}
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -137,6 +158,18 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 SECURE_CONTENT_TYPE_NOSNIFF = True
+if PRODUCTION:
+    # Caddy terminates TLS and forwards the original scheme.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_SSL_REDIRECT = True
+    # Container health checks call the app directly over HTTP.
+    SECURE_REDIRECT_EXEMPT = [r"^health/$", r"^ready/$"]
+    # HSTS preload is hard to undo for a domain; opting in is the owner's decision.
+    SILENCED_SYSTEM_CHECKS = ["security.W021"]
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
@@ -203,3 +236,41 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", CORS_ALLOWED_ORIGINS[0]).rstrip("/")
 # Self-hosted installs: a signed license sets the plan and user seats for the whole install.
 DOCUMIND_LICENSE = os.getenv("DOCUMIND_LICENSE", "")
 DOCUMIND_LICENSE_PUBLIC_KEY = os.getenv("DOCUMIND_LICENSE_PUBLIC_KEY", "")
+
+# Shared cache: throttling counters must be shared by every gunicorn worker, so production
+# points this at Redis. Without it (development, tests) each process counts on its own.
+CACHES = {
+    "default": (
+        {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.environ["CACHE_URL"],
+        }
+        if os.getenv("CACHE_URL")
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
+
+# Email for password resets. The console backend prints messages to the log for development.
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "false").lower() == "true"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "DocuMind <no-reply@localhost>")
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 3
+
+# Rate limits. Login and account-recovery endpoints are tight to stop password guessing.
+REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = (
+    "rest_framework.throttling.AnonRateThrottle",
+    "rest_framework.throttling.UserRateThrottle",
+    "rest_framework.throttling.ScopedRateThrottle",
+)
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "anon": os.getenv("THROTTLE_ANON", "120/min"),
+    "user": os.getenv("THROTTLE_USER", "600/min"),
+    "login": os.getenv("THROTTLE_LOGIN", "10/min"),
+    "register": os.getenv("THROTTLE_REGISTER", "10/hour"),
+    "password_reset": os.getenv("THROTTLE_PASSWORD_RESET", "5/hour"),
+}

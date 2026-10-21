@@ -35,7 +35,7 @@ async function refreshAccessToken(): Promise<boolean> {
 
 function redirectToLogin(): void {
   clearTokens();
-  if (typeof window !== "undefined" && !["/login", "/register"].includes(window.location.pathname)) window.location.href = "/login";
+  if (typeof window !== "undefined" && !["/login", "/register", "/forgot-password", "/reset-password"].includes(window.location.pathname)) window.location.href = "/login";
 }
 
 export async function api<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {

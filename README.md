@@ -64,6 +64,10 @@ Hardware: `qwen2.5:7b` needs about 8 GB of RAM and is slow on CPU only; an NVIDI
 
 To use OpenAI instead, set `AI_PROVIDER=openai` and `OPENAI_API_KEY`. Document excerpts are then sent to OpenAI.
 
+## Production deployment
+
+See [docs/deployment.md](docs/deployment.md): HTTPS on your domain through Caddy (automatic Let's Encrypt certificates), hardened Django settings, rate-limited login and password reset, password reset by email, daily backups, and the launch checklist (legal pages, Enamad, payment gateway).
+
 ## Plans, payments, and licenses
 
 | Plan | For | Includes |

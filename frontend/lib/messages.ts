@@ -146,6 +146,24 @@ const en = {
   "dashboard.deadlines": "Upcoming deadlines",
   "dashboard.deadlinesEmpty": "No deadlines in the next 90 days.",
   "dashboard.gapsLocked": "{count} questions went unanswered. Upgrade to see them and close the gaps.",
+
+  "login.forgot": "Forgot your password?",
+  "forgot.title": "Reset your password",
+  "forgot.subtitle": "Enter your account email and we'll send you a link to choose a new password.",
+  "forgot.email": "Email",
+  "forgot.submit": "Send reset link",
+  "forgot.busy": "Sending…",
+  "forgot.sent": "If an account uses this email, a reset link is on its way. Check your inbox and spam folder.",
+  "forgot.back": "Back to sign in",
+  "reset.title": "Choose a new password",
+  "reset.password": "New password (at least 8 characters)",
+  "reset.confirm": "Repeat the new password",
+  "reset.submit": "Save new password",
+  "reset.busy": "Saving…",
+  "reset.mismatch": "The passwords do not match.",
+  "reset.done": "Your password was changed and other sessions were signed out. You can sign in now.",
+  "reset.invalid": "This reset link is incomplete. Request a new one.",
+  "throttled": "Too many attempts. Please wait a minute and try again.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -296,6 +314,24 @@ const fa: Record<MessageKey, string> = {
   "dashboard.deadlines": "مهلت‌های پیش رو",
   "dashboard.deadlinesEmpty": "در ۹۰ روز آینده مهلتی وجود ندارد.",
   "dashboard.gapsLocked": "{count} پرسش بی‌پاسخ ماند. برای دیدن آن‌ها و رفع خلأها ارتقا دهید.",
+
+  "login.forgot": "رمز عبور را فراموش کرده‌اید؟",
+  "forgot.title": "بازیابی رمز عبور",
+  "forgot.subtitle": "ایمیل حساب خود را وارد کنید تا پیوند انتخاب رمز جدید برایتان ارسال شود.",
+  "forgot.email": "ایمیل",
+  "forgot.submit": "ارسال پیوند بازیابی",
+  "forgot.busy": "در حال ارسال…",
+  "forgot.sent": "اگر حسابی با این ایمیل وجود داشته باشد، پیوند بازیابی ارسال شد. صندوق ورودی و پوشه هرزنامه را بررسی کنید.",
+  "forgot.back": "بازگشت به ورود",
+  "reset.title": "انتخاب رمز عبور جدید",
+  "reset.password": "رمز عبور جدید (حداقل ۸ کاراکتر)",
+  "reset.confirm": "تکرار رمز عبور جدید",
+  "reset.submit": "ذخیره رمز جدید",
+  "reset.busy": "در حال ذخیره…",
+  "reset.mismatch": "رمزهای وارد شده یکسان نیستند.",
+  "reset.done": "رمز عبور شما تغییر کرد و از سایر دستگاه‌ها خارج شدید. اکنون می‌توانید وارد شوید.",
+  "reset.invalid": "این پیوند بازیابی ناقص است. یک پیوند جدید درخواست کنید.",
+  "throttled": "تعداد تلاش‌ها زیاد است. یک دقیقه صبر کنید و دوباره تلاش کنید.",
 };
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { en, fa };
