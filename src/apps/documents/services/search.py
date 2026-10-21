@@ -10,6 +10,7 @@ from pgvector.django import CosineDistance
 from apps.documents.models import DocumentChunk, DocumentStatus
 
 from .embeddings import embedding_provider
+from .extraction import normalize_text
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ def semantic_search(
 ) -> list[SearchResult]:
     if threshold is None:
         threshold = settings.SEMANTIC_SEARCH_MAX_DISTANCE
-    embedding = embedding_provider().embed_one(query)
+    embedding = embedding_provider().embed_one(normalize_text(query))
     chunks: QuerySet[DocumentChunk] = DocumentChunk.objects.filter(
         document__owner_id=user_id,
         document__status=DocumentStatus.READY,
@@ -53,7 +54,7 @@ def keyword_search(*, user_id: int, query: str, limit: int = 25) -> QuerySet[Doc
         DocumentChunk.objects.filter(
             document__owner_id=user_id,
             document__status=DocumentStatus.READY,
-            content__icontains=query,
+            content__icontains=normalize_text(query),
         )
         .select_related("document")
         .order_by("document_id", "chunk_index")[:limit]

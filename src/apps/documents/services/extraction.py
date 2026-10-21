@@ -8,6 +8,8 @@ from pathlib import Path
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 
+from .persian import normalize_persian
+
 
 @dataclass(frozen=True)
 class ExtractedPage:
@@ -54,7 +56,7 @@ EXTRACTORS: dict[str, DocumentExtractor] = {
 
 
 def normalize_text(value: str) -> str:
-    return re.sub(r"\s+", " ", value).strip()
+    return re.sub(r"\s+", " ", normalize_persian(value)).strip()
 
 
 def extractor_for(filename: str) -> DocumentExtractor:

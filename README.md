@@ -1,6 +1,6 @@
 # DocuMind
 
-DocuMind is a production-oriented AI document intelligence platform. Upload private PDF, TXT, DOCX, or Markdown files, organize them into collections, retrieve them semantically, and ask grounded questions that include structured source citations.
+DocuMind is a private, self-hostable AI assistant for company documents, built first for **Persian (Farsi)**. Upload PDF, TXT, DOCX, or Markdown files, organize them into collections, retrieve them semantically, and ask grounded questions that include structured source citations. With the `local` provider, the AI models run on the company's own server and document text never leaves it.
 
 It is intentionally designed as a real portfolio project: a Django/DRF API with PostgreSQL + pgvector, Redis/Celery background processing, JWT authentication, a polished Next.js client, Docker Compose, CI, and focused tests.
 
@@ -10,7 +10,8 @@ It is intentionally designed as a real portfolio project: a Django/DRF API with 
 - Defensive document upload validation: extension, MIME, format signature, safe filename, and configurable limits
 - Non-blocking extraction pipeline with PDF, TXT, DOCX, and Markdown extractors
 - Configurable overlapping chunking, deterministic retries, idempotent derived-data replacement, and status tracking
-- OpenAI embedding/chat providers behind interfaces plus deterministic local mock providers for tests
+- Persian-first: right-to-left Persian interface, Persian text normalization (Arabic ي/ك, Persian/Arabic digits, diacritics, PDF presentation forms) applied to documents and queries, and answers in the language of the question
+- Interchangeable AI providers: self-hosted (Ollama, vLLM, or any OpenAI-compatible server), OpenAI, or a deterministic mock for development and tests
 - pgvector cosine similarity retrieval with owner, document, and collection filters; keyword search is available now and hybrid search can build on the same service boundary
 - Grounded document/global chat, persisted conversations/messages, citations, and evidence-insufficiency behavior
 - Short, detailed, key-point, and executive summaries; large summaries run through Celery
@@ -25,7 +26,7 @@ flowchart LR
   API --> Q[Redis]
   Q --> Worker[Celery]
   Worker --> DB
-  Worker --> AI[OpenAI]
+  Worker --> AI[Self-hosted LLM or OpenAI]
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the data model, processing sequence, RAG safety boundary, and operational model.
@@ -39,7 +40,24 @@ docker compose up --build
 
 Open the client at `http://localhost:3000`, API documentation at `http://localhost:8000/api/docs/`, and the OpenAPI schema at `http://localhost:8000/api/schema/`.
 
-For a credential-free local experience, leave `AI_PROVIDER=mock`: it uses a simple word-overlap embedding so search and chat still work (answers are the best matching excerpts, not generated text). In a deployment, set `AI_PROVIDER=openai` and supply `OPENAI_API_KEY`; the OpenAI providers are already implemented and selected by configuration.
+For a credential-free local experience, leave `AI_PROVIDER=mock`: it uses a simple word-overlap embedding so search and chat still work (answers are the best matching excerpts, not generated text).
+
+## Self-hosted AI (no data leaves the server)
+
+1. In `.env` set `AI_PROVIDER=local`. The defaults use `bge-m3` for embeddings (multilingual, strong Persian) and `qwen2.5:7b` for answers.
+2. Start the stack with the `local-ai` profile. The first run downloads the models (about 6 GB):
+
+   ```bash
+   docker compose --profile local-ai up --build
+   ```
+
+3. Wait until the `ollama-models` container exits successfully, then use the app as usual.
+
+The embedding size is fixed in the database when it is first created (1024 for `bge-m3`, 1536 for OpenAI). When switching between providers, recreate the database with `docker compose down -v` and re-upload documents.
+
+Hardware: `qwen2.5:7b` needs about 8 GB of RAM and is slow on CPU only; an NVIDIA GPU (uncomment the `deploy` block of the `ollama` service) makes answers fast. On larger servers use `qwen2.5:14b` or bigger via `LOCAL_CHAT_MODEL`. Any OpenAI-compatible server (vLLM, LM Studio, a GPU box elsewhere on the company network) works by pointing `LOCAL_LLM_BASE_URL` at it.
+
+To use OpenAI instead, set `AI_PROVIDER=openai` and `OPENAI_API_KEY`. Document excerpts are then sent to OpenAI.
 
 ## Local backend development
 
@@ -120,7 +138,7 @@ tests/                 API, domain, and RAG safety tests
 
 ## Limitations and roadmap
 
-The included `mock` AI providers enable reliable development and tests but are not semantic models; use the configured OpenAI provider for real retrieval quality. File storage is local Docker-volume storage, suitable for the single-node deployment described here. A next production iteration would add S3-compatible object storage, antivirus scanning, a rate-limit backend, hybrid ranking, team sharing, analytics, and billing.
+The included `mock` AI providers enable reliable development and tests but are not semantic models; use the `local` or `openai` provider for real retrieval quality. Scanned PDFs have no text layer and are not yet readable; Persian OCR is the next planned step, followed by organizations/teams with roles. File storage is local Docker-volume storage, suitable for the single-node deployment described here. A next production iteration would add S3-compatible object storage, antivirus scanning, a rate-limit backend, hybrid ranking, team sharing, analytics, and billing.
 
 ## License
 

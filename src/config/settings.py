@@ -91,7 +91,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
-LANGUAGE_CODE = "en-us"
+# Persian by default so built-in Django/DRF validation messages reach users in Farsi.
+LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE", "fa")
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -147,13 +148,24 @@ CELERY_RESULT_SERIALIZER = "json"
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "120"))
-EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
+# `mock` (no AI, for development), `local` (self-hosted, OpenAI-compatible server such as
+# Ollama), or `openai`.
 AI_PROVIDER = os.getenv("AI_PROVIDER", "mock")
+# The vector column size is fixed when migrations first run; changing it needs a fresh database.
+EMBEDDING_DIMENSIONS = int(
+    os.getenv("EMBEDDING_DIMENSIONS") or ("1024" if AI_PROVIDER == "local" else "1536")
+)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+# Ollama ignores the key, but the OpenAI client requires a non-empty value.
+LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "") or "not-needed"
+LOCAL_CHAT_MODEL = os.getenv("LOCAL_CHAT_MODEL", "qwen2.5:7b")
+LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3")
+LOCAL_LLM_TIMEOUT_SECONDS = float(os.getenv("LOCAL_LLM_TIMEOUT_SECONDS", "180"))
 # Maximum cosine distance for a chunk to count as relevant. The mock embeddings are a sparse
 # bag of words, so they need a much looser cut-off than real semantic embeddings.
 SEMANTIC_SEARCH_MAX_DISTANCE = float(
-    os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE", "0.65" if AI_PROVIDER == "openai" else "0.97")
+    os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE", "0.97" if AI_PROVIDER == "mock" else "0.65")
 )

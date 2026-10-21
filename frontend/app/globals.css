@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 * { box-sizing: border-box; }
-body { margin: 0; background: #f5f7fb; }
+body { margin: 0; background: #f5f7fb; font-family: "Vazirmatn Variable", Tahoma, sans-serif; }
 button, input, select, textarea { font: inherit; }
 .card { @apply rounded-2xl border border-slate-200 bg-white shadow-sm; }
 .btn { @apply inline-flex items-center justify-center rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60; }

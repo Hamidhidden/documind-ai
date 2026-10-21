@@ -55,11 +55,13 @@ export async function api<T>(path: string, options: RequestInit = {}, retried = 
 
 export function errorMessage(error: unknown): string {
   const details = (error as ApiError)?.error?.details;
-  if (!details) return "Something went wrong. Please try again.";
+  if (!details) return "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.";
   if (typeof details === "string") return details;
   const first = Object.values(details)[0];
   return Array.isArray(first) ? first[0] : String(first);
 }
 
-export function formatBytes(value: number): string { return `${(value / 1024 / 1024).toFixed(value < 1024 * 1024 ? 1 : 0)} MB`; }
+const persianNumber = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 });
+export function toPersianNumber(value: number): string { return persianNumber.format(value); }
+export function formatBytes(value: number): string { return value < 1024 * 1024 ? `${toPersianNumber(Math.max(1, Math.round(value / 1024)))} کیلوبایت` : `${toPersianNumber(value / 1024 / 1024)} مگابایت`; }
 

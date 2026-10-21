@@ -20,13 +20,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # Self-hosted AI (`docker compose --profile local-ai up`): models run on this machine and
+  # document text never leaves it. For an NVIDIA GPU, uncomment the `deploy` block.
+  ollama:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    volumes: [ollama_data:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  ollama-models:
+    image: ollama/ollama:0.12.6
+    profiles: [local-ai]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull $${LOCAL_EMBEDDING_MODEL} && ollama pull $${LOCAL_CHAT_MODEL}"]
+    env_file: .env
+    depends_on:
+      ollama: { condition: service_healthy }
+    restart: "no"
+
   web:
     build: .
-    command: sh -c "python src/manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    command: sh -c "python src/manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 300 --access-logfile -"
     env_file: .env
     environment:
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ollama:11434/v1}
     volumes: [media_data:/app/media]
     ports: ["8000:8000"]
     depends_on:
@@ -40,6 +68,7 @@ services:
     environment:
       POSTGRES_HOST: postgres
       REDIS_URL: redis://redis:6379/0
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ollama:11434/v1}
     volumes: [media_data:/app/media]
     depends_on:
       postgres: { condition: service_healthy }
@@ -55,4 +84,5 @@ services:
 volumes:
   postgres_data:
   media_data:
+  ollama_data:
 
