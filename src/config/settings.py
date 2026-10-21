@@ -166,6 +166,12 @@ LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3")
 LOCAL_LLM_TIMEOUT_SECONDS = float(os.getenv("LOCAL_LLM_TIMEOUT_SECONDS", "180"))
 # Maximum cosine distance for a chunk to count as relevant. The mock embeddings are a sparse
 # bag of words, so they need a much looser cut-off than real semantic embeddings.
+# bge-m3 (local) puts relevant Persian chunks around 0.3-0.45 and unrelated ones above 0.55.
 SEMANTIC_SEARCH_MAX_DISTANCE = float(
-    os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE", "0.97" if AI_PROVIDER == "mock" else "0.65")
+    os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE")
+    or {"mock": "0.97", "local": "0.5"}.get(AI_PROVIDER, "0.65")
+)
+# Drop chunks more than this much further than the best match.
+SEMANTIC_SEARCH_RELATIVE_MARGIN = float(
+    os.getenv("SEMANTIC_SEARCH_RELATIVE_MARGIN") or ("1.0" if AI_PROVIDER == "mock" else "0.12")
 )

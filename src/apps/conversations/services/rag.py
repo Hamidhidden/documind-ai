@@ -33,7 +33,22 @@ class ChatProvider(ABC):
     def answer(self, *, question: str, context: str, purpose: str = "answer") -> str: ...
 
 
+def reply_language(text: str) -> str:
+    """Persian when Arabic-script letters outnumber Latin ones, otherwise English."""
+    arabic_script = sum(1 for char in text if "؀" <= char <= "ۿ")
+    latin = sum(1 for char in text if char.isascii() and char.isalpha())
+    return "Persian (Farsi)" if arabic_script > latin else "English"
+
+
+def insufficient_evidence(question: str) -> str:
+    english, persian = INSUFFICIENT_EVIDENCE.split(" / ")
+    return persian if reply_language(question).startswith("Persian") else english
+
+
 def _messages(question: str, context: str, purpose: str) -> list[dict[str, str]]:
+    # Summaries carry an English instruction as the "question"; their language follows the
+    # document. Small local models follow an explicit language line far more reliably.
+    language = reply_language(context if purpose == "summarization" else question)
     return [
         {"role": "system", "content": SYSTEM_INSTRUCTIONS},
         {
@@ -41,7 +56,8 @@ def _messages(question: str, context: str, purpose: str) -> list[dict[str, str]]
             "content": (
                 f"Task: {purpose}\nQuestion: {question}\n\n"
                 "<untrusted_document_excerpts>\n"
-                f"{context}\n</untrusted_document_excerpts>"
+                f"{context}\n</untrusted_document_excerpts>\n\n"
+                f"Write the reply in {language}."
             ),
         },
     ]
@@ -115,7 +131,7 @@ def _citation(result: SearchResult) -> dict[str, object]:
 def answer_question(*, user_id: int, question: str, document_id: UUID | None = None) -> RAGAnswer:
     results = semantic_search(user_id=user_id, query=question, document_id=document_id, limit=6)
     if not results:
-        return RAGAnswer(INSUFFICIENT_EVIDENCE, [])
+        return RAGAnswer(insufficient_evidence(question), [])
     context = "\n\n".join(
         (
             f"[Source {index}: {item.chunk.document.filename}, "

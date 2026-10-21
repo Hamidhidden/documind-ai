@@ -71,3 +71,46 @@ def test_local_provider_calls_openai_compatible_server(monkeypatch, settings) ->
     assert captured["client"]["base_url"] == "http://ollama:11434/v1"
     assert captured["model"] == "qwen2.5:7b"
     assert "Persian" in captured["messages"][0]["content"]
+
+
+def test_reply_language_follows_question_or_document() -> None:
+    assert rag.reply_language("مبلغ ودیعه چقدر است؟") == "Persian (Farsi)"
+    assert rag.reply_language("What is the deposit?") == "English"
+    messages = rag._messages("Summarize this.", "این یک قرارداد اجاره است.", "summarization")
+    assert messages[1]["content"].endswith("Write the reply in Persian (Farsi).")
+
+
+@pytest.mark.django_db
+def test_semantic_search_drops_chunks_far_from_the_best_match(user, settings, monkeypatch) -> None:
+    settings.SEMANTIC_SEARCH_MAX_DISTANCE = 0.9
+    settings.SEMANTIC_SEARCH_RELATIVE_MARGIN = 0.12
+    settings.EMBEDDING_DIMENSIONS = 1536
+    from apps.documents.models import DocumentChunk
+
+    close, far = _persian_document(user), _persian_document(user)
+    for document, vector in ((close, [1.0, 0.0]), (far, [0.6, 0.8])):
+        document.status = DocumentStatus.READY
+        document.save()
+        DocumentChunk.objects.create(
+            document=document,
+            chunk_index=0,
+            content="x",
+            token_count=1,
+            embedding=vector + [0.0] * 1534,
+        )
+
+    class Embeddings:
+        def embed_one(self, _value):
+            return [1.0, 0.0] + [0.0] * 1534
+
+    monkeypatch.setattr("apps.documents.services.search.embedding_provider", lambda: Embeddings())
+    # Distances: 0.0 for `close`, 0.4 for `far`; both under the absolute cut-off.
+    results = semantic_search(user_id=user.id, query="ودیعه")
+    assert [result.chunk.document_id for result in results] == [close.id]
+
+
+def test_insufficient_evidence_message_matches_question_language(monkeypatch) -> None:
+    monkeypatch.setattr(rag, "semantic_search", lambda **_kwargs: [])
+    persian = rag.answer_question(user_id=1, question="قیمت دلار چند است؟").content
+    assert persian == "اسناد موجود اطلاعات کافی برای پاسخ به این پرسش ندارند."
+    assert "/" not in rag.answer_question(user_id=1, question="What is the dollar rate?").content

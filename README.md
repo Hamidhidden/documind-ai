@@ -55,7 +55,7 @@ For a credential-free local experience, leave `AI_PROVIDER=mock`: it uses a simp
 
 The embedding size is fixed in the database when it is first created (1024 for `bge-m3`, 1536 for OpenAI). When switching between providers, recreate the database with `docker compose down -v` and re-upload documents.
 
-Hardware: `qwen2.5:7b` needs about 8 GB of RAM and is slow on CPU only; an NVIDIA GPU (uncomment the `deploy` block of the `ollama` service) makes answers fast. On larger servers use `qwen2.5:14b` or bigger via `LOCAL_CHAT_MODEL`. Any OpenAI-compatible server (vLLM, LM Studio, a GPU box elsewhere on the company network) works by pointing `LOCAL_LLM_BASE_URL` at it.
+Hardware: `qwen2.5:7b` needs about 8 GB of RAM and is slow on CPU only; an NVIDIA GPU (add `-f docker-compose.yml -f docker-compose.gpu.yml` to the compose command) makes answers fast. On larger servers use `qwen2.5:14b` or bigger via `LOCAL_CHAT_MODEL`. Any OpenAI-compatible server (vLLM, LM Studio, a GPU box elsewhere on the company network) works by pointing `LOCAL_LLM_BASE_URL` at it.
 
 To use OpenAI instead, set `AI_PROVIDER=openai` and `OPENAI_API_KEY`. Document excerpts are then sent to OpenAI.
 

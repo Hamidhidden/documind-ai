@@ -43,9 +43,16 @@ def semantic_search(
     ranked = chunks.annotate(distance=CosineDistance("embedding", embedding)).filter(
         distance__lte=threshold
     )
+    results = list(ranked.order_by("distance")[:limit])
+    if not results:
+        return []
+    # Keep only chunks close to the best match, so a weakly related document is not cited
+    # alongside the one that actually answers the question.
+    cutoff = float(results[0].distance) + settings.SEMANTIC_SEARCH_RELATIVE_MARGIN
     return [
         SearchResult(chunk=item, score=1 - float(item.distance))
-        for item in ranked.order_by("distance")[:limit]
+        for item in results
+        if float(item.distance) <= cutoff
     ]
 
 
