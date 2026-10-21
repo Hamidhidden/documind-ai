@@ -39,6 +39,8 @@ def test_upload_is_queued_and_scoped_to_owner(
         response = client_for.post("/api/v1/documents/", {"file": upload}, format="multipart")
     assert response.status_code == 201
     document = Document.objects.get()
+    assert response.data["id"] == str(document.id)
+    assert response.data["status"] == DocumentStatus.UPLOADED
     assert document.status == DocumentStatus.UPLOADED
     assert queued == [str(document.id)]
 

@@ -41,10 +41,14 @@ class DocumentViewSet(viewsets.ModelViewSet):
             return DocumentRenameSerializer  # type: ignore[return-value]
         return DocumentSerializer
 
-    def perform_create(self, serializer: DocumentUploadSerializer) -> None:
+    def create(self, request: Request, *args: object, **kwargs: object) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             document = serializer.save()
             transaction.on_commit(lambda: process_document_task.delay(str(document.id)))
+        # The upload serializer only accepts the file; respond with the full document.
+        return Response(DocumentSerializer(document).data, status=201)
 
     @action(detail=True, methods=["get"])
     def download(self, _request: Request, pk: UUID | None = None) -> FileResponse:
