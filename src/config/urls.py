@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from apps.shared.dashboard import DashboardView
 from apps.shared.views import health, ready
 
 urlpatterns = [
@@ -13,6 +14,7 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
     path("api/v1/auth/", include("apps.accounts.urls")),
+    path("api/v1/dashboard/", DashboardView.as_view(), name="dashboard"),
     path("api/v1/", include("apps.documents.urls")),
     path("api/v1/collections/", include("apps.collections.urls")),
     path("api/v1/conversations/", include("apps.conversations.urls")),

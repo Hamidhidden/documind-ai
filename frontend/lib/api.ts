@@ -10,12 +10,16 @@ export type Document = {
 export type Collection = { id: string; name: string; document_count: number; created_at: string };
 export type Conversation = { id: string; title: string; document_id: string | null; message_count: number; updated_at: string };
 export type Message = { id: string; role: "user" | "assistant"; content: string; sources: Citation[]; created_at: string };
-export type Citation = { document_id: string; document_name: string; page: number | null; chunk_id: string; score?: number };
+export type Citation = { document_id: string; document_name: string; page: number | null; chunk_id: string; score?: number; excerpt?: string };
 
 function token(): string | null { return typeof window === "undefined" ? null : localStorage.getItem("accessToken"); }
 export function saveTokens(access: string, refresh: string): void { localStorage.setItem("accessToken", access); localStorage.setItem("refreshToken", refresh); }
 export function clearTokens(): void { localStorage.removeItem("accessToken"); localStorage.removeItem("refreshToken"); }
 export function isAuthenticated(): boolean { return Boolean(token()); }
+
+function currentLocale(): string {
+  try { return localStorage.getItem("locale") === "en" ? "en" : "fa"; } catch { return "fa"; }
+}
 
 let refreshing: Promise<boolean> | null = null;
 
@@ -38,6 +42,7 @@ export async function api<T>(path: string, options: RequestInit = {}, retried = 
   const headers = new Headers(options.headers);
   if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (token()) headers.set("Authorization", `Bearer ${token()}`);
+  headers.set("Accept-Language", currentLocale());
   const response = await fetch(`${API_URL}${path}`, { ...options, headers });
   // Access tokens live 15 minutes: refresh once (shared across parallel requests) and retry.
   if (response.status === 401 && token() && !retried) {
@@ -53,15 +58,21 @@ export async function api<T>(path: string, options: RequestInit = {}, retried = 
   return data as T;
 }
 
-export function errorMessage(error: unknown): string {
+/** Server messages arrive already translated (Accept-Language); `fallback` covers network errors. */
+export function errorMessage(error: unknown, fallback = "Something went wrong. Please try again."): string {
   const details = (error as ApiError)?.error?.details;
-  if (!details) return "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.";
+  if (!details) return fallback;
   if (typeof details === "string") return details;
   const first = Object.values(details)[0];
   return Array.isArray(first) ? first[0] : String(first);
 }
 
-const persianNumber = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 });
-export function toPersianNumber(value: number): string { return persianNumber.format(value); }
-export function formatBytes(value: number): string { return value < 1024 * 1024 ? `${toPersianNumber(Math.max(1, Math.round(value / 1024)))} کیلوبایت` : `${toPersianNumber(value / 1024 / 1024)} مگابایت`; }
+export type Dashboard = {
+  documents: { total: number; by_status: Partial<Record<Document["status"], number>>; by_type: Record<string, number>; storage_bytes: number; pages: number; words: number };
+  collections: number; conversations: number;
+  questions: { total: number; answered: number; answer_rate: number | null };
+  activity: { date: string; questions: number }[];
+  top_documents: { id: string; filename: string; citations: number }[];
+  knowledge_gaps: { question: string; conversation_id: string; asked_at: string }[];
+};
 

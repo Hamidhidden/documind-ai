@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -93,6 +94,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 # Persian by default so built-in Django/DRF validation messages reach users in Farsi.
 LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE", "fa")
+# The client sends Accept-Language from its language switch; these are the ones offered.
+LANGUAGES = [("fa", "Persian"), ("en", "English")]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -146,8 +149,10 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "800"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "120"))
+# Words per chunk. Smaller chunks let a specific clause match its question instead of being
+# diluted by the rest of the document.
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "300"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "60"))
 # `mock` (no AI, for development), `local` (self-hosted, OpenAI-compatible server such as
 # Ollama), or `openai`.
 AI_PROVIDER = os.getenv("AI_PROVIDER", "mock")
@@ -166,10 +171,11 @@ LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3")
 LOCAL_LLM_TIMEOUT_SECONDS = float(os.getenv("LOCAL_LLM_TIMEOUT_SECONDS", "180"))
 # Maximum cosine distance for a chunk to count as relevant. The mock embeddings are a sparse
 # bag of words, so they need a much looser cut-off than real semantic embeddings.
-# bge-m3 (local) puts relevant Persian chunks around 0.3-0.45 and unrelated ones above 0.55.
+# Loose on purpose: with bge-m3 a relevant clause can sit at 0.66 while an unrelated chunk sits
+# at 0.50, so distance only gathers candidates and the model judges relevance (see rag.py).
 SEMANTIC_SEARCH_MAX_DISTANCE = float(
     os.getenv("SEMANTIC_SEARCH_MAX_DISTANCE")
-    or {"mock": "0.97", "local": "0.5"}.get(AI_PROVIDER, "0.65")
+    or {"mock": "0.97", "local": "0.7"}.get(AI_PROVIDER, "0.65")
 )
 # Drop chunks more than this much further than the best match.
 SEMANTIC_SEARCH_RELATIVE_MARGIN = float(

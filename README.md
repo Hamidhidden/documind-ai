@@ -11,6 +11,9 @@ It is intentionally designed as a real portfolio project: a Django/DRF API with 
 - Non-blocking extraction pipeline with PDF, TXT, DOCX, and Markdown extractors
 - Configurable overlapping chunking, deterministic retries, idempotent derived-data replacement, and status tracking
 - Persian-first: right-to-left Persian interface, Persian text normalization (Arabic ي/ك, Persian/Arabic digits, diacritics, PDF presentation forms) applied to documents and queries, and answers in the language of the question
+- Conversational chat: follow-up questions ("and the second year?") are rewritten into standalone searches, answers cite sources inline as clickable [1] chips with the excerpt, and a reply that cites nothing is treated as "not in the documents"
+- Analytics dashboard: documents, knowledge-base size, questions, answer rate, 14-day activity, most-cited documents, and **knowledge gaps** (questions the documents could not answer)
+- Persian/English interface switch (RTL/LTR, Jalali/Gregorian dates, localized server errors) and light/dark themes
 - Interchangeable AI providers: self-hosted (Ollama, vLLM, or any OpenAI-compatible server), OpenAI, or a deterministic mock for development and tests
 - pgvector cosine similarity retrieval with owner, document, and collection filters; keyword search is available now and hybrid search can build on the same service boundary
 - Grounded document/global chat, persisted conversations/messages, citations, and evidence-insufficiency behavior
